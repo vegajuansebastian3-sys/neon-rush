@@ -29,6 +29,17 @@ ul{margin:0;padding-left:18px}
 .tag{display:inline-block;font-size:12px;border:1px solid var(--line);border-radius:999px;padding:1px 9px;margin:0 6px 6px 0;color:var(--fg)}
 .tag b{color:var(--acc);font-weight:600}
 .tbl{overflow-x:auto}
+.rot{display:none;align-items:center;gap:12px;margin:0 0 12px;padding:10px 14px;border:1px solid var(--acc);border-radius:10px;background:var(--card);font-size:14px}
+.rot i{display:inline-block;width:22px;height:36px;border:3px solid var(--acc);border-radius:5px;flex:none;animation:rotphone 2.4s ease-in-out infinite}
+@keyframes rotphone{0%,20%{transform:rotate(0)}60%,100%{transform:rotate(-90deg)}}
+@media (prefers-reduced-motion:reduce){.rot i{animation:none}}
+@media (orientation:portrait) and (pointer:coarse) and (max-width:820px){.rot{display:flex}}
+@media (orientation:landscape) and (pointer:coarse) and (max-height:520px){
+  main>*:not(.game){display:none}
+  main{padding:0;max-width:none}
+  .game{position:fixed;inset:0;z-index:5;border:0;border-radius:0;background:#0d1117;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+  iframe{height:100%}
+}
 </style>
 </head>
 <body>
@@ -36,8 +47,9 @@ ul{margin:0;padding-left:18px}
 <h1>Neon <span>Rush</span></h1>
 <p class="sub">Parkour sin fin sobre los tejados. Salta, desliza, recoge monedas y llega lo más lejos que puedas.</p>
 
+<div class="rot" id="rot"><i></i><span>Gira el teléfono para jugar en horizontal. Al girarlo, el juego ocupa toda la pantalla.</span></div>
 <div class="game"><iframe id="g" title="Neon Rush" allow="autoplay; fullscreen"></iframe></div>
-<div class="bar"><span>Toca o haz clic en el juego para empezar. Tus monedas y skins se guardan en este navegador.</span><button id="fs" type="button">Pantalla completa</button></div>
+<div class="bar"><span>Toca o haz clic en el juego para empezar. Tus monedas y skins se guardan en este navegador.</span><button id="fs" type="button">Pantalla completa (horizontal)</button></div>
 
 <h2>Cómo se juega</h2>
 <div class="grid">
@@ -1316,7 +1328,7 @@ requestAnimationFrame(loop);
   var t=document.getElementById('src').textContent.replace(/<\\\/script/g,'</script');
   f.srcdoc=t;
   document.getElementById('fs').addEventListener('click',function(){
-    try{(f.requestFullscreen||f.webkitRequestFullscreen).call(f)}catch(e){}
+    try{var rq=(f.requestFullscreen||f.webkitRequestFullscreen).call(f);Promise.resolve(rq).then(function(){if(screen.orientation&&screen.orientation.lock)return screen.orientation.lock('landscape')}).catch(function(){})}catch(e){}
   });
 })();
 </script>
