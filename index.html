@@ -49,7 +49,7 @@ ul{margin:0;padding-left:18px}
 
 <div class="rot" id="rot"><i></i><span>Gira el teléfono para jugar en horizontal. Al girarlo, el juego ocupa toda la pantalla.</span></div>
 <div class="game"><iframe id="g" title="Neon Rush" allow="autoplay; fullscreen"></iframe></div>
-<div class="bar"><span>Toca o haz clic en el juego para empezar. Tus monedas y skins se guardan en este navegador.</span><button id="fs" type="button">Pantalla completa (horizontal)</button></div>
+<div class="bar"><span>Toca o haz clic en el juego para empezar. Tus monedas, skins y la partida en curso se guardan en este navegador.</span><button id="fs" type="button">Pantalla completa (horizontal)</button></div>
 
 <h2>Cómo se juega</h2>
 <div class="grid">
@@ -130,6 +130,28 @@ let coins=0,own=['s0'],skin=0,vol=1,dragVol=false;
 try{const v=parseFloat(localStorage.getItem('azotea-vol'));if(v>=0&&v<=1)vol=v}catch(e){}
 try{const d=JSON.parse(localStorage.getItem('azotea-save')||'{}');coins=d.coins|0;if(Array.isArray(d.own))own=d.own;skin=d.skin|0}catch(e){}
 const save=()=>{try{localStorage.setItem('azotea-save',JSON.stringify({coins,own,skin}))}catch(e){}};
+/* ---- Partida en curso guardada ---- */
+const RUNKEY='azotea-run';
+let savedRun=null;
+function readRun(){try{const d=JSON.parse(localStorage.getItem(RUNKEY)||'null');if(d&&d.v===1&&Array.isArray(d.plats)&&d.plats.length&&d.p&&isFinite(d.wx)&&d.li>=0)return d}catch(e){}return null}
+function clearRun(){savedRun=null;try{localStorage.removeItem(RUNKEY)}catch(e){}}
+function saveRun(){
+  if(!S||S.mode!=='run'||S.p.y>H-20)return;
+  const keep=a=>a.filter(o=>o.x+(o.w||0)>S.wx-500);
+  const plats=keep(S.plats),li=plats.indexOf(S.last);
+  if(li<0)return;
+  const d={v:1,wx:S.wx,speed:S.speed,t:S.t,zone:S.zone,shield:S.shield,slow:S.slow,jp:S.jp,inv:S.inv,run:S.run,p:S.p,plats,obs:keep(S.obs),co:keep(S.co),pu:keep(S.pu),li};
+  try{const str=JSON.stringify(d);localStorage.setItem(RUNKEY,str);savedRun=JSON.parse(str)}catch(e){}
+}
+function resumeRun(){
+  const d=savedRun;
+  reset('run');
+  if(!d)return;
+  Object.assign(S,{wx:d.wx,speed:d.speed,t:d.t,zone:d.zone,zoneT:0,shield:d.shield,slow:d.slow,jp:d.jp,inv:Math.max(d.inv,1.5),run:d.run,p:d.p,plats:d.plats,obs:d.obs,co:d.co,pu:d.pu});
+  S.last=S.plats[d.li]||S.plats[S.plats.length-1];
+  S.popT=1.6;S.popMsg='Partida recuperada';
+}
+savedRun=readRun();
 const SKINS=[{a:'#ff6a2b',j:'#2f4a6b'},{a:'#19d3da',j:'#1f5a6b'},{a:'#ff4fa3',j:'#5a2a5e'},{a:'#b6f23a',j:'#2f5a2a'},{a:'#ffd23a',j:'#6b5a1f'},
   {a:'#3aa0ff',j:'#2b2f36',h:'cool'},{a:'#ff3b3b',j:'#1c2430',h:'ninja'},{a:'#ffffff',j:'#c9d2dc',h:'space'},{a:'#ffd23a',j:'#7a1fa2',h:'crown'},{a:'#4dffb0',j:'#44505c',h:'robot'},
   {a:'#ff7a1a',j:'#3b2a1a',h:'pumpkin'},{a:'#e8f4ff',j:'#9db4c8',h:'ghost'},{a:'#7a2fb5',j:'#2a1a3a',h:'witch'},{a:'#ff7a1a',j:'#15151c',h:'skull'},
@@ -170,6 +192,7 @@ let jHeld=false;
 const dust=(x,y,n,v)=>{for(let i=0;i<n;i++)S.fx.push({x:x+(Math.random()-.5)*14,y:y-1,vx:(Math.random()-.5)*v-40,vy:-20-Math.random()*50,life:.3+Math.random()*.15,col:'#b9c2cc'})};
 
 function reset(mode){
+  if(mode==='run')clearRun();
   const first={x:-300,w:900,y:330};
   S={mode,wx:0,speed:300,t:0,overT:0,msg:'',osel:0,nr:false,zone:0,zoneT:0,menu:'main',sel:0,pu:[],fx:[],shield:false,slow:0,jp:0,inv:0,popT:0,popMsg:'',
      p:{y:330,vy:0,ground:true,coy:0,jumps:0,slide:0,buf:0,rot:0},
@@ -203,7 +226,7 @@ function hit(){
 }
 function die(msg){
   if(S.mode!=='run')return;
-  S.mode='over';S.overT=0;S.msg=msg;sfx('die');
+  S.mode='over';S.overT=0;S.msg=msg;sfx('die');clearRun();
   const m=Math.floor(S.wx/10);
   S.nr=m>best&&m>0;
   if(m>best){best=m;try{localStorage.setItem('azotea-best',best)}catch(e){}}
@@ -211,6 +234,7 @@ function die(msg){
 function update(dt){
   S.t+=dt;S.zoneT=Math.max(0,S.zoneT-dt);S.slow=Math.max(0,S.slow-dt);S.jp=Math.max(0,S.jp-dt);S.inv=Math.max(0,S.inv-dt);S.popT=Math.max(0,S.popT-dt);
   if(S.mode==='over'){S.overT+=dt;return}
+  if(S.mode==='run'){S.as=(S.as||0)+dt;if(S.as>4){S.as=0;saveRun()}}
   if(S.mode!=='run')return;
   const p=S.p,hw=13;
   S.speed=Math.min(560,300+S.wx*.012);
@@ -943,7 +967,7 @@ function overHit(mx,my){
 
 /* ---- Menú de inicio ---- */
 const XB=()=>S.menu==='shop'?{x:576,y:64}:S.menu==='help'?{x:626,y:54}:{x:576,y:104};
-function backMenu(){dragVol=false;S.sel=S.menu==='shop'?1:S.menu==='help'?2:3;S.menu='main'}
+function backMenu(){dragVol=false;S.sel=menuIdx(S.menu==='shop'?'shop':S.menu==='help'?'help':'set');S.menu='main'}
 function drawX(){
   const b=XB(),on=!!S.xh,c=on?'#ff2d95':'#19e6ff';
   ctx.save();ctx.fillStyle=on?'rgba(255,45,149,.3)':'rgba(14,4,32,.85)';ctx.beginPath();ctx.arc(b.x,b.y,14,0,7);ctx.fill();
@@ -951,7 +975,9 @@ function drawX(){
   ctx.lineWidth=2.5;ctx.lineCap='round';ctx.strokeStyle=on?'#fff':c;ctx.beginPath();
   ctx.moveTo(b.x-5,b.y-5);ctx.lineTo(b.x+5,b.y+5);ctx.moveTo(b.x+5,b.y-5);ctx.lineTo(b.x-5,b.y+5);ctx.stroke();ctx.restore();
 }
-function menuBtn(i){return{x:494,y:164+i*44,w:232,h:36}}
+const menuItems=()=>savedRun?['cont','play','shop','help','set']:['play','shop','help','set'];
+const menuIdx=id=>menuItems().indexOf(id);
+function menuBtn(i){const big=menuItems().length>4;return{x:494,y:164+i*(big?40:44),w:232,h:big?34:36}}
 function shopRow(i){return i===shopList().length?{x:220,y:334,w:360,h:34}:{x:220,y:132+(i-(S.off|0))*40,w:360,h:34}}
 function rrect(x,y,w,h,r){
   ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
@@ -959,10 +985,12 @@ function rrect(x,y,w,h,r){
 }
 function menuAct(i){
   ensureAudio();
-  if(S.menu==='help'){S.menu='main';S.sel=2;return}
-  if(i===0)reset('run');
-  else if(i===1){S.menu='shop';S.sel=0;S.tab=0;S.off=0}
-  else if(i===2)S.menu='help';
+  if(S.menu==='help'){S.menu='main';S.sel=menuIdx('help');return}
+  const id=menuItems()[i];
+  if(id==='cont')resumeRun();
+  else if(id==='play')reset('run');
+  else if(id==='shop'){S.menu='shop';S.sel=0;S.tab=0;S.off=0}
+  else if(id==='help')S.menu='help';
   else{S.menu='settings';S.sel=0}
 }
 function menuKey(e){
@@ -971,7 +999,7 @@ function menuKey(e){
   ensureAudio();
   if(S.menu==='shop'){
     const n=shopList().length+1;
-    if(k==='Escape'){S.menu='main';S.sel=1}
+    if(k==='Escape'){S.menu='main';S.sel=menuIdx('shop')}
     else if(k==='ArrowLeft'||k==='ArrowRight'||k==='KeyA'||k==='KeyD'){S.tab=1-S.tab;S.sel=0;S.off=0}
     else if(k==='ArrowUp'||k==='KeyW'){S.sel=(S.sel+n-1)%n;keepVis()}
     else if(k==='ArrowDown'||k==='KeyS'){S.sel=(S.sel+1)%n;keepVis()}
@@ -979,17 +1007,17 @@ function menuKey(e){
     return;
   }
   if(S.menu==='settings'){
-    if(k==='Escape'){S.menu='main';S.sel=3}
+    if(k==='Escape'){S.menu='main';S.sel=menuIdx('set')}
     else if(k==='ArrowUp'||k==='KeyW')S.sel=(S.sel+2)%3;
     else if(k==='ArrowDown'||k==='KeyS')S.sel=(S.sel+1)%3;
     else if((k==='ArrowLeft'||k==='KeyA')&&S.sel===0)setVol(vol-.1);
     else if((k==='ArrowRight'||k==='KeyD')&&S.sel===0)setVol(vol+.1);
-    else if(k==='Space'||k==='Enter'){if(S.sel===1)toggleMute();else if(S.sel===2){S.menu='main';S.sel=3}}
+    else if(k==='Space'||k==='Enter'){if(S.sel===1)toggleMute();else if(S.sel===2){S.menu='main';S.sel=menuIdx('set')}}
     return;
   }
-  if(S.menu==='help'){if(['Space','Enter','Escape'].includes(k)){S.menu='main';S.sel=2}return}
-  if(k==='ArrowUp'||k==='KeyW')S.sel=(S.sel+3)%4;
-  else if(k==='ArrowDown'||k==='KeyS')S.sel=(S.sel+1)%4;
+  if(S.menu==='help'){if(['Space','Enter','Escape'].includes(k)){S.menu='main';S.sel=menuIdx('help')}return}
+  if(k==='ArrowUp'||k==='KeyW')S.sel=(S.sel+menuItems().length-1)%menuItems().length;
+  else if(k==='ArrowDown'||k==='KeyS')S.sel=(S.sel+1)%menuItems().length;
   else if(k==='Space'||k==='Enter')menuAct(S.sel);
 }
 function menuClick(mx,my){
@@ -1006,10 +1034,10 @@ function menuClick(mx,my){
   if(S.menu==='settings'){
     if(inr(setRow(0))){S.sel=0;dragVol=true;volFromX(mx)}
     else if(inr(setRow(1))){S.sel=1;toggleMute()}
-    else if(inr(setRow(2))){S.menu='main';S.sel=3}
+    else if(inr(setRow(2))){S.menu='main';S.sel=menuIdx('set')}
     return;
   }
-  for(let i=0;i<4;i++){
+  for(let i=0;i<menuItems().length;i++){
     const b=menuBtn(i);
     if(mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h){S.sel=i;menuAct(i);return}
   }
@@ -1021,7 +1049,7 @@ const TRK={x:244,w:312,y:186};
 function volFromX(mx){setVol((mx-TRK.x)/TRK.w)}
 function shopAct(i){
   const list=shopList();
-  if(i===list.length){S.menu='main';S.sel=1;return}
+  if(i===list.length){S.menu='main';S.sel=menuIdx('shop');return}
   const it=list[i];
   if(!own.includes(it.id)){if(coins<it.c)return;coins-=it.c;own.push(it.id);sfx('pow')}
   if(it.s!==undefined)skin=it.s;
@@ -1163,19 +1191,21 @@ function drawMenu(){
   if(S.menu==='help'){drawHelp();neonFrame(150,30,500,390,14,'#ff2d95','#19e6ff');drawX();return}
   if(S.menu==='shop'){drawShop();neonFrame(200,40,400,380,14,'#ff2d95','#19e6ff');drawX();return}
   if(S.menu==='settings'){drawSettings();neonFrame(200,80,400,240,14,'#ff2d95','#19e6ff');drawX();return}
-  ctx.fillStyle='rgba(14,4,32,.8)';rrect(470,70,280,310,14);ctx.fill();neonFrame(470,70,280,310,14,'#ff2d95','#19e6ff');
+  const ex=menuItems().length>4?30:0;
+  ctx.fillStyle='rgba(14,4,32,.8)';rrect(470,70,280,310+ex,14);ctx.fill();neonFrame(470,70,280,310+ex,14,'#ff2d95','#19e6ff');
   ctx.save();ctx.fillStyle='#ff2d95';ctx.shadowColor='#ff2d95';ctx.shadowBlur=12;ctx.fillRect(494,132,52,4);ctx.restore();
   ctx.save();ctx.globalAlpha=(Math.sin(S.t*23)*Math.sin(S.t*7.3)>.93)?.55:1;ctx.font='bold 38px system-ui,sans-serif';ctx.shadowColor='#19e6ff';ctx.shadowBlur=22;ctx.strokeStyle='#19e6ff';ctx.lineWidth=2;ctx.strokeText('Neon Rush',494,122);ctx.fillStyle='#fff';ctx.fillText('Neon Rush',494,122);ctx.shadowColor='#ff2d95';ctx.shadowBlur=10;ctx.fillText('Neon Rush',494,122);ctx.restore();
   ctx.fillStyle='rgba(25,230,255,.9)';ctx.font='14px system-ui,sans-serif';ctx.fillText('Parkour sobre los tejados',494,152);
-  const labels=['Jugar','Tienda','Cómo jugar','Ajustes'];
-  for(let i=0;i<4;i++){
+  const LB={cont:savedRun?'Continuar · '+Math.floor(savedRun.wx/10)+' m':'',play:savedRun?'Partida nueva':'Jugar',shop:'Tienda',help:'Cómo jugar',set:'Ajustes'};
+  const labels=menuItems().map(id=>LB[id]);
+  for(let i=0;i<menuItems().length;i++){
     const b=menuBtn(i),on=S.sel===i;
     ctx.save();rrect(b.x,b.y,b.w,b.h,8);ctx.fillStyle=on?'rgba(255,45,149,.28)':'rgba(20,8,48,.6)';ctx.fill();
     ctx.shadowColor=on?'#ff2d95':'#19e6ff';ctx.shadowBlur=on?20:8;ctx.strokeStyle=on?'#ff7ac0':'#19e6ff';ctx.lineWidth=on?2.5:1.5;ctx.stroke();ctx.restore();
     ctx.save();ctx.fillStyle='#fff';if(on){ctx.shadowColor='#ff2d95';ctx.shadowBlur=10}ctx.font='bold 17px system-ui,sans-serif';ctx.fillText(labels[i],b.x+16,b.y+24);ctx.restore();
   }
-  ctx.fillStyle='#ffe36a';ctx.font='14px system-ui,sans-serif';ctx.fillText('Récord: '+best+' m',494,352);
-  ctx.font='12px system-ui,sans-serif';ctx.fillStyle='rgba(255,255,255,.5)';ctx.fillText('↑ ↓ para elegir, Espacio para aceptar',494,370);
+  ctx.fillStyle='#ffe36a';ctx.font='14px system-ui,sans-serif';ctx.fillText('Récord: '+best+' m',494,352+ex*.8);
+  ctx.font='12px system-ui,sans-serif';ctx.fillStyle='rgba(255,255,255,.5)';ctx.fillText('↑ ↓ para elegir, Espacio para aceptar',494,370+ex*.8);
 }
 function drawHelp(){
   ctx.fillStyle='rgba(14,4,32,.9)';rrect(150,30,500,390,14);ctx.fill();
@@ -1209,7 +1239,7 @@ cv.addEventListener('pointermove',e=>{
   if(S.menu!=='main'){const xb=XB(),o=Math.hypot(mx-xb.x,my-xb.y)<=18;S.xh=o;cv.style.cursor=o?'pointer':'';return}
   S.xh=false;
   let over=false;
-  for(let i=0;i<4;i++){
+  for(let i=0;i<menuItems().length;i++){
     const b=menuBtn(i);
     if(mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h){S.sel=i;over=true}
   }
@@ -1225,13 +1255,15 @@ function jumpDown(){ensureAudio();jHeld=true;
 }
 function jumpUp(){jHeld=false}
 addEventListener('blur',()=>{jHeld=false});
+addEventListener('pagehide',saveRun);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)saveRun()});
 function slideDown(){
   if(S.mode==='ready'||S.mode==='over'){jumpDown();return}
   if(S.p.ground)S.p.slide=.6;else S.p.sbuf=.15;
 }
 addEventListener('keydown',e=>{
   if(e.repeat)return;
-  if(e.code==='Escape'&&S.mode!=='ready'){reset('ready');return}
+  if(e.code==='Escape'&&S.mode!=='ready'){saveRun();reset('ready');return}
   if(S.mode==='over'){overKey(e);return}
   if(S.mode==='ready'){menuKey(e);return}
   if(['Space','ArrowUp','KeyW'].includes(e.code)){e.preventDefault();jumpDown()}
